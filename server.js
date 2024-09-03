@@ -23,8 +23,8 @@ var corsOptions = {
     }
   },
   methods: "*",
-  allowedHeaders: "*", // Allow all headers
-  exposedHeaders: "*", // Expose all header
+  allowedHeaders: "*",
+  exposedHeaders: "*",
 };
 // use the cors body parser in express app
 app.use(cors(corsOptions));
@@ -43,13 +43,92 @@ app.post("/car", async (req, res) => {
   try {
     const data = req.body;
     const docRef = await db.collection("cars").add(data);
-    return res
-      .status(201)
-      .send({
-        status: "ok",
-        message: "Data saved successfull",
-        data: { id: docRef.id },
+    return res.status(201).send({
+      status: "ok",
+      message: "Data saved successfull",
+      data: { id: docRef.id },
+    });
+  } catch (error) {
+    return res.status(500).send({ status: "error", message: error.message });
+  }
+});
+
+// get all
+app.get("/car", async (req, res) => {
+  try {
+    // Fetching all documents from the 'cars' collection
+    const carsSnapshot = await db.collection("cars").get();
+
+    // Mapping through the documents to extract data
+    const cars = carsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).send({
+      status: "ok",
+      message: "Data retrieved successfully",
+      data: cars,
+    });
+  } catch (error) {
+    return res.status(500).send({ status: "error", message: error.message });
+  }
+});
+
+// delete
+app.delete("/car/:id", async (req, res) => {
+  try {
+    const { id } = req.params; // Extract the document ID from the request parameters
+
+    // Reference to the specific document in the 'cars' collection
+    const carRef = db.collection("cars").doc(id);
+
+    // Check if the document exists
+    const doc = await carRef.get();
+    if (!doc.exists) {
+      return res.status(404).send({
+        status: "error",
+        message: "Car not found",
       });
+    }
+
+    // Delete the document
+    await carRef.delete();
+
+    return res.status(200).send({
+      status: "ok",
+      message: "Car deleted successfully",
+    });
+  } catch (error) {
+    return res.status(500).send({ status: "error", message: error.message });
+  }
+});
+
+// update
+app.put("/car/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedData = req.body;
+
+    // Reference to the specific document in the 'cars' collection
+    const carRef = db.collection("cars").doc(id);
+
+    // Check if the document exists
+    const doc = await carRef.get();
+    if (!doc.exists) {
+      return res.status(404).send({
+        status: "error",
+        message: "Car not found",
+      });
+    }
+
+    // Update the document with the new data
+    await carRef.update(updatedData);
+
+    return res.status(200).send({
+      status: "ok",
+      message: "Car updated successfully",
+    });
   } catch (error) {
     return res.status(500).send({ status: "error", message: error.message });
   }
