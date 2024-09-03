@@ -7,7 +7,6 @@ const multer = require("multer");
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const serviceAccount = require("./serviceAccountKey.json");
-const { status } = require("express/lib/response");
 const fs = require("fs");
 const json2csv = require("json2csv").parse;
 const csvParser = require("csv-parser");
@@ -45,6 +44,7 @@ app.get("/", (req, res) => {
 app.post("/car", async (req, res) => {
   try {
     const data = req.body;
+    delete data.id;
     const docRef = await db.collection("cars").add(data);
     return res.status(201).send({
       status: "ok",
@@ -142,7 +142,6 @@ app.put("/car/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const updatedData = req.body;
-
     // Reference to the specific document in the 'cars' collection
     const carRef = db.collection("cars").doc(id);
 
@@ -169,6 +168,32 @@ app.put("/car/:id", async (req, res) => {
 
 const upload = multer({ dest: "uploads/" });
 
+// app.post("/upload-csv", upload.single("file"), (req, res) => {
+//   if (!req.file) {
+//     return res
+//       .status(400)
+//       .send({ status: "error", message: "No file uploaded" });
+//   }
+
+//   const results = [];
+//   fs.createReadStream(req.file.path)
+//     .pipe(csvParser())
+//     .on("data", (data) => results.push(data))
+//     .on("end", async () => {
+//       try {
+//         for (const car of results) {
+//           await db.collection("cars").add(car);
+//         }
+//         res.status(200).send({
+//           status: "ok",
+//           message: "CSV uploaded and data saved to Firestore",
+//         });
+//       } catch (error) {
+//         res.status(500).send({ status: "error", message: error.message });
+//       }
+//     });
+// });
+
 app.post("/upload-csv", upload.single("file"), (req, res) => {
   if (!req.file) {
     return res
@@ -182,9 +207,23 @@ app.post("/upload-csv", upload.single("file"), (req, res) => {
     .on("data", (data) => results.push(data))
     .on("end", async () => {
       try {
-        for (const car of results) {
-          await db.collection("cars").add(car);
+        for (let car of results) {
+          let docRef;
+
+          // Check if the car object has an 'id' field
+          if (car.id) {
+            docRef = db.collection("cars").doc(car.id);
+          } else {
+            // Generate a new document reference with a unique ID
+            docRef = db.collection("cars").doc();
+            // Set the generated ID in the car object
+            car.id = docRef.id;
+          }
+
+          // Save the document with the provided or generated ID
+          await docRef.set(car);
         }
+
         res.status(200).send({
           status: "ok",
           message: "CSV uploaded and data saved to Firestore",
