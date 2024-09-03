@@ -10,6 +10,8 @@ const serviceAccount = require("./serviceAccountKey.json");
 const { status } = require("express/lib/response");
 const fs = require("fs");
 const json2csv = require("json2csv").parse;
+const csvParser = require("csv-parser");
+
 initializeApp({
   credential: cert(serviceAccount),
   databaseURL: process.env.databaseURL,
