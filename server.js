@@ -3,10 +3,13 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const CORS = require("./app/util/corsOptions");
+const multer = require("multer");
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const serviceAccount = require("./serviceAccountKey.json");
 const { status } = require("express/lib/response");
+const fs = require("fs");
+const json2csv = require("json2csv").parse;
 initializeApp({
   credential: cert(serviceAccount),
   databaseURL: process.env.databaseURL,
@@ -30,12 +33,10 @@ var corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 const db = getFirestore();
-console.log(db);
 app.use(bodyParser.json()); // parsing requesting content type to application/json
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 // making upload folder static for accessing
-app.use("/uploads", express.static("uploads"));
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Welcome to Node js app for firehawk" });
 });
@@ -56,10 +57,40 @@ app.post("/car", async (req, res) => {
 // get all
 app.get("/car", async (req, res) => {
   try {
-    // Fetching all documents from the 'cars' collection
-    const carsSnapshot = await db.collection("cars").get();
+    // Extract filter parameters from the request query
+    const {
+      // horsepowerMax = 10000,
+      horsepowerMin,
+      selectedCylinder,
+      selectedModelYear,
+      selectedOrigin,
+      carName,
+    } = req.query;
 
-    // Mapping through the documents to extract data
+    // Start with the cars collection reference
+    let carsQuery = db.collection("cars");
+
+    // Apply filters based on the provided criteria
+    if (selectedCylinder) {
+      carsQuery = carsQuery.where("cylinders", "==", selectedCylinder);
+    }
+
+    if (selectedModelYear) {
+      carsQuery = carsQuery.where("modelYear", "==", selectedModelYear);
+    }
+
+    if (selectedOrigin) {
+      carsQuery = carsQuery.where("origin", "==", selectedOrigin);
+    }
+
+    if (carName) {
+      carsQuery = carsQuery.where("name", "==", carName);
+    }
+
+    // Fetch the filtered data
+    const carsSnapshot = await carsQuery.get();
+
+    // Map the results to an array of car objects
     const cars = carsSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -67,7 +98,7 @@ app.get("/car", async (req, res) => {
 
     return res.status(200).send({
       status: "ok",
-      message: "Data retrieved successfully",
+      message: "Filtered data retrieved successfully",
       data: cars,
     });
   } catch (error) {
@@ -131,6 +162,47 @@ app.put("/car/:id", async (req, res) => {
     });
   } catch (error) {
     return res.status(500).send({ status: "error", message: error.message });
+  }
+});
+
+const upload = multer({ dest: "uploads/" });
+
+app.post("/upload-csv", upload.single("file"), (req, res) => {
+  if (!req.file) {
+    return res
+      .status(400)
+      .send({ status: "error", message: "No file uploaded" });
+  }
+
+  const results = [];
+  fs.createReadStream(req.file.path)
+    .pipe(csvParser())
+    .on("data", (data) => results.push(data))
+    .on("end", async () => {
+      try {
+        for (const car of results) {
+          await db.collection("cars").add(car);
+        }
+        res.status(200).send({
+          status: "ok",
+          message: "CSV uploaded and data saved to Firestore",
+        });
+      } catch (error) {
+        res.status(500).send({ status: "error", message: error.message });
+      }
+    });
+});
+
+app.get("/download-csv", async (req, res) => {
+  try {
+    const snapshot = await db.collection("cars").get();
+    const cars = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const csv = json2csv(cars);
+    res.setHeader("Content-disposition", "attachment; filename=cars.csv");
+    res.set("Content-Type", "text/csv");
+    res.status(200).send(csv);
+  } catch (error) {
+    res.status(500).send({ status: "error", message: error.message });
   }
 });
 
