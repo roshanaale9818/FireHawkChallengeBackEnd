@@ -111,12 +111,8 @@ app.get("/car", async (req, res) => {
 // delete
 app.delete("/car/:id", async (req, res) => {
   try {
-    const { id } = req.params; // Extract the document ID from the request parameters
-
-    // Reference to the specific document in the 'cars' collection
+    const { id } = req.params;
     const carRef = db.collection("cars").doc(id);
-
-    // Check if the document exists
     const doc = await carRef.get();
     if (!doc.exists) {
       return res.status(404).send({
