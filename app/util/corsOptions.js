@@ -1,5 +1,8 @@
 let CORS = [
   {
+    origin: "http://roshanaalemagar.com:8081/",
+  },
+  {
     origin: "http://localhost:4200",
   },
   {
