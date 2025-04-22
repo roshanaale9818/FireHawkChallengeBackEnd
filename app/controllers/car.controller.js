@@ -37,17 +37,24 @@ exports.getCars = async (req, res) => {
     if (selectedModelYear)
       query = query.where("modelYear", "==", selectedModelYear);
     if (selectedOrigin) query = query.where("origin", "==", selectedOrigin);
-    if (carName) query = query.where("name", "==", carName);
 
     const snapshot = await query.get();
-    const cars = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    let cars = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
+    // mimicking the search functionality instead of using db query
+    if (carName) {
+      const nameSearch = carName.toLowerCase();
+      cars = cars.filter(
+        (car) => car.name && car.name.toLowerCase().includes(nameSearch)
+      );
+    }
     res.status(200).json({
       status: "ok",
       message: "Filtered data retrieved successfully",
       data: cars,
     });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ status: "error", message: error.message });
   }
 };
@@ -105,23 +112,19 @@ exports.uploadCSV = (req, res) => {
   // Validate the file extension
   const fileExt = path.extname(req.file.originalname).toLowerCase();
   if (fileExt !== ".csv") {
-    return res
-      .status(400)
-      .json({
-        status: "error",
-        message: "Invalid file format. Only CSV files are allowed.",
-      });
+    return res.status(400).json({
+      status: "error",
+      message: "Invalid file format. Only CSV files are allowed.",
+    });
   }
 
   // Validate the MIME type
   const fileType = req.file.mimetype;
   if (fileType !== "text/csv" && fileType !== "application/vnd.ms-excel") {
-    return res
-      .status(400)
-      .json({
-        status: "error",
-        message: "Invalid file format. Only CSV files are allowed.",
-      });
+    return res.status(400).json({
+      status: "error",
+      message: "Invalid file format. Only CSV files are allowed.",
+    });
   }
 
   const results = [];
