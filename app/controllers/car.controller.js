@@ -28,7 +28,10 @@ exports.getCars = async (req, res) => {
       selectedModelYear,
       selectedOrigin,
       carName,
+      page = 1,
     } = req.query;
+    const pageSize = 10; // show 10 items per page
+    const currentPage = parseInt(page) || 1;
 
     let query = db.collection("cars");
 
@@ -41,17 +44,25 @@ exports.getCars = async (req, res) => {
     const snapshot = await query.get();
     let cars = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
-    // mimicking the search functionality instead of using db query
+    // mimicking the search functionality because i do not want to pay firebase.
     if (carName) {
       const nameSearch = carName.toLowerCase();
       cars = cars.filter(
         (car) => car.name && car.name.toLowerCase().includes(nameSearch)
       );
     }
+    const totalItems = cars.length;
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedCars = cars.slice(
+      startIndex,
+      startIndex + parseInt(pageSize)
+    );
     res.status(200).json({
       status: "ok",
-      message: "Filtered data retrieved successfully",
-      data: cars,
+      message: "Filtered and paginated data retrieved successfully",
+      data: paginatedCars,
+      totalItems,
     });
   } catch (error) {
     console.log(error);
